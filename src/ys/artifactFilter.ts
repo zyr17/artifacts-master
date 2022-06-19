@@ -111,7 +111,7 @@ export class ArtifactFilter {
         for (const filter of filters) matchCount += filter.filter(input)
         return targetCount <= matchCount
     }
-    filterOne(artifact: Artifact): boolean {
+    filterOne(artifact: Artifact, useScoreFilters: boolean = true): boolean {
         let inFilter = true
         inFilter &&= this.filterOneRule(artifact.mainKey, this.main)
         inFilter &&= this.filterOneRule(artifact.rarity, this.stars)
@@ -133,8 +133,9 @@ export class ArtifactFilter {
                 character.push(artifact.location)
         inFilter &&= this.filterOneRule(artifact.location, character)
         inFilter &&= this.filterOneRule(artifact.minors.length, this.subCount)
-        for (const i in this.scoreFilters)
-            inFilter &&= this.scoreFilters[i].filter(artifact.data.affnum[i])
+        if (useScoreFilters)
+            for (const i in this.scoreFilters)
+                inFilter &&= this.scoreFilters[i].filter(artifact.data.affnum[i])
         const subInclude = this.filterSub(artifact.minors, this.includeSub, this.includeSubCount, true)
         const subExclude = this.filterSub(artifact.minors, this.excludeSub, this.excludeSubCount + 1, false)
         inFilter = inFilter && subInclude && !subExclude
@@ -191,6 +192,15 @@ export class ArtifactFilter {
         for (let i of rankRes)
             results2.push(results[i])
         return results2
+    }
+    filterIgnoreScore(artifacts: Artifact[]) : number[] {
+        // ignore score and rank, so artifacts keep rank calculated by its set weight
+        let results = []
+        for (let i = 0; i < artifacts.length; i ++ )
+            if (this.filterOne(artifacts[i], false)) {
+                results.push(i)
+            }
+        return results
     }
     loadFromJSON(str: string) {
         const data = JSON.parse(str);
