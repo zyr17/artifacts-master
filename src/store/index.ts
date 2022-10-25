@@ -130,12 +130,18 @@ export const store = createStore<IState>({
                 // let ruleResult = [];
                 if (state.filterBatch[i].lock == 'disabled')
                     continue
-                for (let a of state.artifacts) {
+                // use specified filterbatch, filter part set etc. first, to speedup and keep set specified score
+                const firstFilterRes = filter.filterIgnoreScore(state.artifacts)
+                let firstRet = []
+                for (const j of firstFilterRes)
+                    firstRet.push(state.artifacts[j])
+                // ret = ret.filter(a => filter.filterOne(a));
+                for (let a of firstRet) {
                     a.updateAffnum(filter.scoreWeight)
                 }
-                const filterRes = filter.filter(state.artifacts)
+                const filterRes = filter.filter(firstRet)
                 for (const j of filterRes)
-                    newLock[j] = state.filterBatch[i].lock == 'lock';
+                    newLock[firstFilterRes[j]] = state.filterBatch[i].lock == 'lock';
                 // for (let j = 0; j < state.artifacts.length; j ++ )
                 //     if (filter.filterOne(state.artifacts[j])) {
                 //         // ruleResult.push(JSON.parse(JSON.stringify(state.artifacts[j])));
@@ -145,10 +151,26 @@ export const store = createStore<IState>({
             }
             for (let i = 0; i < state.artifacts.length; i++)
                 state.artifacts[i].lock = newLock[i];
-            ElNotification({
-                type: 'success',
-                title: '批量规则应用成功',
-            })
+            state.loading = true
+            setTimeout(() => {
+                let ret = state.filteredArtifacts.slice()
+                console.log(state.sortBy)
+                if (state.sortBy == 'prop') { // sort in descending order of charscore
+                    ret.sort((a, b) => b.data.charScores[0].score - a.data.charScores[0].score)
+                } else if (state.sortBy) { // sort in descending order of affix number
+                    ret.sort((a, b) => (b.data.affnum as any)[state.sortBy] - (a.data.affnum as any)[state.sortBy]);
+                } else { // sort in ascending order of index
+                    ret.sort((a, b) => a.data.index - b.data.index)
+                }
+                state.filteredArtifacts = ret
+
+                ElNotification({
+                    type: 'success',
+                    title: '批量规则应用成功',
+                })
+                state.nReload++
+                state.loading = false
+            }, LOADING_DELAY)
         },
         updFilteredArtifacts({ state }) {
             state.loading = true
