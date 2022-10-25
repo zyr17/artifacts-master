@@ -18,12 +18,16 @@ const LOADING_DELAY = 250
 export const key: InjectionKey<Store<IState>> = Symbol()
 export const store = createStore<IState>({
     state: () => {
-        let set = [], slot = [], main = [], location = ['']
+        let set: string[] = [], slot: string[] = [], main: string[] = [], location = ['']
         for (let key in chs.set) set.push(key)
         for (let key in chs.slot) slot.push(key)
         for (let key of data.mainKeys.all) main.push(key)
         for (let key in chs.character) location.push(key)
         return {
+            set,
+            slot,
+            mainKey: main,
+            location,
             artifacts: [],
             filteredArtifacts: [],
             filter: {
@@ -57,10 +61,107 @@ export const store = createStore<IState>({
             sortBy: 'tot',
             canExport: false,
             nReload: 0,// for UI refreshing
-            loading: false
+            loading: false,
         }
     },
     getters: {
+        equiped(state): { string?: { string?: { string? : Artifact[][] }}} {
+            /* Save equiped artifacts based on their set and slot.
+             * For equiped.x.y.z[i][j], x is set name, y is slot name, z is 
+             * mainKey name, i in [0-3] means four match rule i + 1, j is index
+             * of a matched artifact. When an artifact has set x, slot y, 
+             * mainKey z, and will compare equiped artifacts with rule i, the 
+             * artifacts list it should compare all lies in equiped.x.y.z[i].
+             * 
+             * four rules are:
+             * 1. set and slot and mainKey exactly match. will always used in 
+             *    comparison.
+             * 2. slot and mainKey match, and set appears on other slots of 
+             *    one character. it can be used to complete current set, so 
+             *    we can replace artifacts in this set with other non-set 
+             *    artifacts. e.g., Kokomi has OceanHuedClam in all solt except
+             *    heal circlet, and all OceanHuedClam heal circlet will fit
+             *    this rule.
+             * 3. only slot and mainKey match, and set is not used, i.e. the
+             *    non-set artifact equiped by characters. Specially, if a
+             *    character equiped three or five same set artifacts, all of 
+             *    them will be considered as non-set artifacts.
+             * 4. slot and mainKey match, no restrictions on set, so 
+             *    equiped.x.y.z[i] will be all same for any x.
+             * 
+             * With above definition, for equiped.x.y.z, all artifacts appeared
+             * in 1 2 or 3 will also appear in 4. Artifacts appeared in 1, 2, 3
+             * will not appear in each other, except artifacts that has 3 or 5
+             * same set artifacts equiped by a character, and they will appear
+             * both in 1 and 3.
+             * 
+             */
+
+            let res: { string?: { string?: { string?: Artifact[][] }}} = {}
+            for (let setname of state.set) {
+                res[setname] = {}
+                for (let slotname of state.slot) {
+                    res[setname][slotname] = {}
+                    for (let mainkeyname of state.mainKey) {
+                        res[setname][slotname][mainkeyname] = [[], [], [], []]
+                    }
+                }
+            }
+            let location_counter = {}
+            for (let artifact of state.artifacts) {
+                if (artifact.location) {
+                    // equipped by someone
+                    location_counter[artifact.location] = {}
+                }
+            }
+            for (let artifact of state.artifacts)
+                if (artifact.location)
+                    location_counter[artifact.location][artifact.set] = 0
+            for (let artifact of state.artifacts)
+                if (artifact.location)
+                    location_counter[artifact.location][artifact.set] ++
+            let location_set = {}
+            let location_overflow_set = {}
+            for (let artifact of state.artifacts)
+                if (artifact.location) {
+                    location_set[artifact.location] = new Set()
+                    location_overflow_set[artifact.location] = new Set()
+                }
+            for (let artifact of state.artifacts)
+                if (artifact.location) {
+                    let setnum = location_counter[artifact.location][artifact.set]
+                    if (setnum >= 2)
+                        // if more than 2 equipped, it is as set
+                        location_set[artifact.location].add(artifact.set)
+                    if (setnum == 3 || setnum == 5)
+                        // if 3 or 5 equipped, as overflow, which exists both 
+                        // in rule 1 and 3.
+                        location_overflow_set[artifact.location].add(artifact.set)
+                }
+            for (let artifact of state.artifacts)
+                if (artifact.location) {
+                    let location = artifact.location
+                    let set = artifact.set
+                    let slot = artifact.slot
+                    let mainkey = artifact.mainKey
+                    // rule 1
+                    if (location_set[location].has(set))
+                        res[set][slot][mainkey][0].push(artifact)
+                    // rule 2
+                    for (let otherset of location_set[location])
+                        if (otherset != set)
+                            res[otherset][slot][mainkey][1].push(artifact)
+                    // rule 3
+                    if (!location_set[location].has(set) || 
+                            location_overflow_set[location].has(set))
+                        for (let otherset of state.set)
+                            res[otherset][slot][mainkey][2].push(artifact)
+                    // rule 4
+                    for (let otherset of state.set)
+                        res[otherset][slot][mainkey][3].push(artifact)
+                }
+            return res
+        },
         filterSets(state) {
             let ret = [{ key: "", value: "全部", tip: state.artifacts.length.toString() }],
                 s = countArtifactAttr(state.artifacts, 'set')

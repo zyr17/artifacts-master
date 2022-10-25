@@ -9,6 +9,10 @@ export interface IOption {
 }
 
 export interface IState {
+    set: string[]
+    slot: string[]
+    mainKey: string[]
+    location: string[]
     artifacts: Artifact[]
     filteredArtifacts: Artifact[]
     filter: {
