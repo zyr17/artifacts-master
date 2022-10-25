@@ -154,11 +154,12 @@ export const store = createStore<IState>({
             state.loading = true
             setTimeout(() => {
                 let ret = state.filteredArtifacts.slice()
-                console.log(state.sortBy)
-                if (state.sortBy == 'prop') { // sort in descending order of charscore
+                console.log(state.sort.by)
+                // TODO old sort logic, may fix
+                if (state.sort.by == 'prop') { // sort in descending order of charscore
                     ret.sort((a, b) => b.data.charScores[0].score - a.data.charScores[0].score)
-                } else if (state.sortBy) { // sort in descending order of affix number
-                    ret.sort((a, b) => (b.data.affnum as any)[state.sortBy] - (a.data.affnum as any)[state.sortBy]);
+                } else if (state.sort.by) { // sort in descending order of affix number
+                    ret.sort((a, b) => (b.data.affnum as any)[state.sort.by] - (a.data.affnum as any)[state.sort.by]);
                 } else { // sort in ascending order of index
                     ret.sort((a, b) => a.data.index - b.data.index)
                 }
